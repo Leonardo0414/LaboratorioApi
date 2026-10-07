@@ -27,9 +27,8 @@ class FluxoEntradaDTO(BaseModel):
 
 
 class CalculoRequestDTO(BaseModel):
-    # TODO PASSO 3: este DTO aceita campo desconhecido em silencio.
-    # Acrescente model_config = ConfigDict(extra="forbid") e repita a requisicao
-    # com "energia_produto_jj" -- a diferenca entre 201 errado e 422 na hora.
+    model_config = ConfigDict(extra="forbid")   # "energia_produto_jj" = 422, nao 201
+
     fluxos: list[FluxoEntradaDTO] = Field(min_length=1)
     energia_produto_j: Decimal = Field(gt=0)
 

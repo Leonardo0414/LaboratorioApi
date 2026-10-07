@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api.v1 import rotas_calculo, rotas_demo
+from app.api.v1 import rotas_calculo
 from app.dominio import erros
 from app.infra.log import entrar_no_contexto, log, novo_request_id
 
@@ -21,7 +21,6 @@ app = FastAPI(
     description="Fatia vertical: rota -> service -> motor puro -> repositorio.",
 )
 app.include_router(rotas_calculo.router)
-app.include_router(rotas_demo.router)
 
 
 @app.middleware("http")
@@ -93,11 +92,19 @@ async def h_ep(request: Request, exc: erros.EnergiaProdutoInvalida):
                     "Energia do produto invalida", str(exc), request)
 
 
-# TODO PASSO 3: faltam os outros dois handlers. Sem eles, uma excecao de dominio
-# perfeitamente prevista sai como 500 -- e 500 significa "erro nosso", nao
-# "seu pedido nao faz sentido". Siga o molde de h_ep acima:
-#
-#   erros.FluxosInsuficientes        -> 422, type "fluxos-insuficientes"
-#   erros.FatorConversaoNaoEncontrado -> 422, type "fator-conversao-nao-encontrado"
-#
-# Confira em /docs e com a requisicao de inventario vazio do PASSO 3.
+@app.exception_handler(erros.FluxosInsuficientes)
+async def h_fluxos(request: Request, exc: erros.FluxosInsuficientes):
+    # 422: o inventario e JSON valido, mas incompleto a ponto de deixar um
+    # indice indefinido. E erro do pedido, nao nosso -- nunca 500.
+    log("calculo.recusado", level="warning", erro="fluxos-insuficientes")
+    return _problem(status.HTTP_422_UNPROCESSABLE_ENTITY, "fluxos-insuficientes",
+                    "Fluxos insuficientes", str(exc), request)
+
+
+@app.exception_handler(erros.FatorConversaoNaoEncontrado)
+async def h_fator(request: Request, exc: erros.FatorConversaoNaoEncontrado):
+    # 422: recurso sem transformidade cadastrada na versao vigente da tabela.
+    log("calculo.recusado", level="warning", erro="fator-conversao-nao-encontrado",
+        recurso=exc.recurso, versao_fatores=exc.versao)
+    return _problem(status.HTTP_422_UNPROCESSABLE_ENTITY, "fator-conversao-nao-encontrado",
+                    "Fator de conversao nao encontrado", str(exc), request)
